@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Player Deluxe Snake and Ladder Game</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #83a4d4, #b6fbff);
+        }
+        .game-container {
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        #board {
+            width: 400px;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+        .cell {
+            fill: #f0f0f0;
+            stroke: #d0d0d0;
+            stroke-width: 0.5;
+        }
+        .cell-text {
+            font-size: 6px;
+            fill: #333;
+            font-weight: bold;
+            user-select: none;
+        }
+        .player {
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+            transition: all 0.5s ease;
+        }
+        .snake {
+            fill: none;
+            stroke-linecap: round;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+        }
+        .ladder {
+            stroke-linecap: round;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+        }
+        .decoration {
+            fill: none;
+            stroke: #3498db;
+            stroke-width: 0.3;
+            opacity: 0.5;
+        }
+        button {
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+            margin: 0 5px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        #message {
+            font-size: 16px;
+            color: #34495e;
+            margin-bottom: 15px;
+            height: 60px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        #dice {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Two-Player Deluxe Snake and Ladder</h1>
+        <svg id="board" viewBox="0 0 100 100"></svg>
+        <div id="dice">🎲</div>
+        <p id="message">Player 1's turn. Roll the dice to start the game!</p>
+        <button id="rollButton" onclick="rollDice()">Roll Dice</button>
+        <button id="restartButton" onclick="restartGame()">Restart Game</button>
+    </div>
+
+    <script>
+        const board = {
+            2: 38, 7: 14, 8: 31, 15: 26, 21: 42, 28: 84, 36: 44, 51: 67, 71: 91, 78: 98, // Ladders
+            16: 6, 46: 25, 49: 11, 62: 19, 64: 60, 74: 53, 89: 68, 92: 88, 95: 75, 99: 80 // Snakes
+        };
+        let playerPositions = [0, 0];
+        let currentPlayer = 0;
+
+        function createBoard() {
+            const svg = document.getElementById('board');
+            const cellSize = 10;
+
+            // Create decorative background
+            const decoration = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            decoration.setAttribute('d', 'M0,0 L100,100 M100,0 L0,100 M50,0 L50,100 M0,50 L100,50');
+            decoration.setAttribute('class', 'decoration');
+            svg.appendChild(decoration);
+
+            // Create cells with alternating colors and correct number positioning
+            for (let y = 9; y >= 0; y--) {
+                for (let x = 0; x < 10; x++) {
+                    const cellNumber = (y % 2 === 0) ? (10 * (9 - y) + x + 1) : (10 * (10 - y) - x);
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', x * cellSize);
+                    rect.setAttribute('y', y * cellSize);
+                    rect.setAttribute('width', cellSize);
+                    rect.setAttribute('height', cellSize);
+                    rect.setAttribute('class', 'cell');
+                    rect.setAttribute('id', `cell-${cellNumber}`);
+                    rect.setAttribute('fill', (x + y) % 2 === 0 ? '#f0f0f0' : '#e0e0e0');
+                    svg.appendChild(rect);
+
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', x * cellSize + cellSize / 2);
+                    text.setAttribute('y', y * cellSize + cellSize / 2);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('dominant-baseline', 'middle');
+                    text.setAttribute('class', 'cell-text');
+                    text.textContent = cellNumber;
+                    svg.appendChild(text);
+                }
+            }
+
+            // Create snakes and ladders
+            for (const [start, end] of Object.entries(board)) {
+                const [startX, startY] = getCellCenter(parseInt(start));
+                const [endX, endY] = getCellCenter(end);
+                
+                if (end > start) {
+                    // Ladder
+                    const ladder = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const midX = (startX + endX) / 2;
+                    const midY = (startY + endY) / 2;
+                    ladder.setAttribute('d', `M ${startX} ${startY} Q ${midX} ${midY} ${endX} ${endY}`);
+                    ladder.setAttribute('class', 'ladder');
+                    ladder.setAttribute('stroke', '#e67e22');
+                    ladder.setAttribute('stroke-width', '1.5');
+                    ladder.setAttribute('fill', 'none');
+                    svg.appendChild(ladder);
+
+                    // Ladder rungs
+                    const numRungs = 5;
+                    for (let i = 0; i < numRungs; i++) {
+                        const t = i / (numRungs - 1);
+                        const x1 = startX * (1 - t) + endX * t;
+                        const y1 = startY * (1 - t) + endY * t;
+                        const rung = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        rung.setAttribute('x1', x1 - 1);
+                        rung.setAttribute('y1', y1);
+                        rung.setAttribute('x2', x1 + 1);
+                        rung.setAttribute('y2', y1);
+                        rung.setAttribute('stroke', '#e67e22');
+                        rung.setAttribute('stroke-width', '0.5');
+                        svg.appendChild(rung);
+                    }
+                } else {
+                    // Snake
+                    const snake = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const midX1 = (startX + endX) / 2 + (Math.random() - 0.5) * 10;
+                    const midY1 = (startY + endY) / 2 + (Math.random() - 0.5) * 10;
+                    const midX2 = (startX + endX) / 2 + (Math.random() - 0.5) * 10;
+                    const midY2 = (startY + endY) / 2 + (Math.random() - 0.5) * 10;
+                    snake.setAttribute('d', `M ${startX} ${startY} C ${midX1} ${midY1}, ${midX2} ${midY2}, ${endX} ${endY}`);
+                    snake.setAttribute('class', 'snake');
+                    snake.setAttribute('stroke', '#2ecc71');
+                    snake.setAttribute('stroke-width', '2');
+                    svg.appendChild(snake);
+
+                    // Snake head
+                    const snakeHead = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    snakeHead.setAttribute('cx', startX);
+                    snakeHead.setAttribute('cy', startY);
+                    snakeHead.setAttribute('r', '1');
+                    snakeHead.setAttribute('fill', '#2ecc71');
+                    svg.appendChild(snakeHead);
+                }
+            }
+
+            // Create players
+            const player1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            player1.setAttribute('r', 1.5);
+            player1.setAttribute('class', 'player');
+            player1.setAttribute('id', 'player1');
+            player1.setAttribute('fill', '#e74c3c');
+            svg.appendChild(player1);
+
+            const player2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            player2.setAttribute('r', 1.5);
+            player2.setAttribute('class', 'player');
+            player2.setAttribute('id', 'player2');
+            player2.setAttribute('fill', '#3498db');
+            svg.appendChild(player2);
+        }
+
+        function getCellCenter(cellNumber) {
+            const row = 9 - Math.floor((cellNumber - 1) / 10);
+            const col = (row % 2 === 0) ? (cellNumber - 1) % 10 : 9 - (cellNumber - 1) % 10;
+            return [col * 10 + 5, row * 10 + 5];
+        }
+
+        function updatePlayerPositions() {
+            const [x1, y1] = getCellCenter(playerPositions[0]);
+            const [x2, y2] = getCellCenter(playerPositions[1]);
+            const player1 = document.getElementById('player1');
+            const player2 = document.getElementById('player2');
+            player1.setAttribute('cx', x1);
+            player1.setAttribute('cy', y1);
+            player2.setAttribute('cx', x2);
+            player2.setAttribute('cy', y2);
+        }
+
+        function rollDice() {
+            const roll = Math.floor(Math.random() * 6) + 1;
+            const prevPosition = playerPositions[currentPlayer];
+            playerPositions[currentPlayer] = Math.min(playerPositions[currentPlayer] + roll, 100);
+
+            document.getElementById('dice').textContent = `🎲 ${roll}`;
+
+            let message = `Player ${currentPlayer + 1} rolled a ${roll}.<br>`;
+            message += `Moved from ${prevPosition} to ${playerPositions[currentPlayer]}`;
+
+            if (board[playerPositions[currentPlayer]]) {
+                const moveType = board[playerPositions[currentPlayer]] > playerPositions[currentPlayer] ? 'Ladder' : 'Snake';
+                const intermediatePosition = playerPositions[currentPlayer];
+                playerPositions[currentPlayer] = board[playerPositions[currentPlayer]];
+                message += `.<br>${moveType}! Moved to ${playerPositions[currentPlayer]}`;
+            }
+
+            updatePlayerPositions();
+
+            if (playerPositions[currentPlayer] === 100) {
+                message += `.<br>Congratulations! Player ${currentPlayer + 1} won!`;
+                document.getElementById('rollButton').disabled = true;
+            } else {
+                currentPlayer = 1 - currentPlayer;
+                message += `.<br>Player ${currentPlayer + 1}'s turn.`;
+            }
+
+            document.getElementById('message').innerHTML = message;
+        }
+
+        function restartGame() {
+            playerPositions = [0, 0];
+            currentPlayer = 0;
+            updatePlayerPositions();
+            document.getElementById('rollButton').disabled = false;
+            document.getElementById('message').innerHTML = "Player 1's turn. Roll the dice to start the game!";
+            document.getElementById('dice').textContent = "🎲";
+        }
+
+        createBoard();
+        updatePlayerPositions();
+    </script>
+</body>
+</html>
